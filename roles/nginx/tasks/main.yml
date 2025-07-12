@@ -57,14 +57,14 @@
     group: root
 
 - name: Generate self-signed SSL certificate
-  ansible.builtin.openssl_privatekey:
+  community.crypto.openssl_privatekey:
     path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
     size: 2048
     state: present
   when: nginx_ssl_enabled | bool
 
 - name: Generate self-signed SSL certificate signing request
-  ansible.builtin.openssl_csr:
+  community.crypto.openssl_csr:
     path: "{{ nginx_ssl_dir }}/nginx-selfsigned.csr"
     privatekey_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
     common_name: "{{ ansible_hostname }}"
@@ -76,12 +76,12 @@
   when: nginx_ssl_enabled | bool
 
 - name: Generate self-signed SSL certificate
-  ansible.builtin.openssl_certificate:
+  community.crypto.x509_certificate:
     path: "{{ nginx_ssl_dir }}/nginx-selfsigned.crt"
     csr_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.csr"
     privatekey_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
     provider: selfsigned
-    days: 365
+    selfsigned_not_after: "+365d"
   when: nginx_ssl_enabled | bool
 
 - name: Set SSL certificate permissions

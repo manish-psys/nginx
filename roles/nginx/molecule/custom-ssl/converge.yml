@@ -2,7 +2,5 @@
 - name: Converge Custom SSL
   hosts: all
   gather_facts: true
-  tasks:
-    - name: Include nginx role
-      ansible.builtin.include_role:
-        name: nginx 
+  roles:
+    - nginx 

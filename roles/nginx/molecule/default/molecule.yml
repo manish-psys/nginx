@@ -2,78 +2,32 @@
 driver:
   name: podman
 platforms:
-  - name: centos8
-    image: quay.io/centos/centos:stream8
+  - name: centos10
+    image: quay.io/centos/centos:stream10
     pre_build_image: true
+    command: /usr/sbin/init
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
     cgroupns_mode: host
     environment:
       container: podman
     systemd: true
-    tmpfs:
-      - /tmp
-      - /run
-      - /run/lock
     capabilities:
       - SYS_ADMIN
     security_opt:
       - seccomp:unconfined
-    command: ${MOLECULE_DOCKER_COMMAND:-""}
     stop_signal: SIGRTMIN+3
-    annotations:
-      io.github.containers.toolbox: "true"
-
-  - name: centos9
-    image: quay.io/centos/centos:stream9
-    pre_build_image: true
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    cgroupns_mode: host
-    environment:
-      container: podman
-    systemd: true
-    tmpfs:
-      - /tmp
-      - /run
-      - /run/lock
-    capabilities:
-      - SYS_ADMIN
-    security_opt:
-      - seccomp:unconfined
-    command: ${MOLECULE_DOCKER_COMMAND:-""}
-    stop_signal: SIGRTMIN+3
-    annotations:
-      io.github.containers.toolbox: "true"
-
-  - name: rhel8
-    image: registry.access.redhat.com/ubi8/ubi:latest
-    pre_build_image: true
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    cgroupns_mode: host
-    environment:
-      container: podman
-    systemd: true
-    tmpfs:
-      - /tmp
-      - /run
-      - /run/lock
-    capabilities:
-      - SYS_ADMIN
-    security_opt:
-      - seccomp:unconfined
-    command: ${MOLECULE_DOCKER_COMMAND:-""}
-    stop_signal: SIGRTMIN+3
-    annotations:
-      io.github.containers.toolbox: "true"
 
 provisioner:
   name: ansible
   config_options:
     defaults:
       interpreter_python: auto_silent
+      remote_tmp: /tmp
+      local_tmp: /tmp
+      roles_path: ./
   playbooks:
+    prepare: prepare.yml
     converge: converge.yml
   inventory:
     group_vars:
@@ -81,7 +35,7 @@ provisioner:
         ansible_python_interpreter: /usr/bin/python3
         ansible_user: root
         ansible_become: false
-        ansible_connection: docker
+        ansible_connection: podman
 
 verifier:
   name: ansible
