@@ -1,0 +1,30 @@
+{
+ "collection_info": {
+  "namespace": "manish_psys",
+  "name": "nginx",
+  "version": "1.0.0",
+  "authors": [
+   "your name <example@domain.com>"
+  ],
+  "readme": "README.md",
+  "tags": [],
+  "description": "your collection description",
+  "license": [
+   "GPL-2.0-or-later"
+  ],
+  "license_file": null,
+  "dependencies": {},
+  "repository": "http://example.com/repository",
+  "documentation": "http://docs.example.com",
+  "homepage": "http://example.com",
+  "issues": "http://example.com/issue/tracker"
+ },
+ "file_manifest_file": {
+  "name": "FILES.json",
+  "ftype": "file",
+  "chksum_type": "sha256",
+  "chksum_sha256": "19aabd5e464708c242fc43b5265b8cbb9cbd852b618531fb62284e08d13b286d",
+  "format": 1
+ },
+ "format": 1
+}
