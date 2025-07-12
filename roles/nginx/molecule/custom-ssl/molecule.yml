@@ -1,0 +1,51 @@
+---
+driver:
+  name: podman
+platforms:
+  - name: centos8-ssl
+    image: quay.io/centos/centos:stream8
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    environment:
+      container: podman
+    systemd: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    capabilities:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    command: ${MOLECULE_DOCKER_COMMAND:-""}
+    stop_signal: SIGRTMIN+3
+    annotations:
+      io.github.containers.toolbox: "true"
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+  playbooks:
+    converge: converge.yml
+  inventory:
+    group_vars:
+      all:
+        ansible_python_interpreter: /usr/bin/python3
+        ansible_user: root
+        ansible_become: false
+        ansible_connection: docker
+        nginx_ssl_enabled: true
+        nginx_ssl_org: "Custom SSL Organization"
+        nginx_ssl_ou: "Custom SSL Department"
+        nginx_ssl_country: "IN"
+        nginx_ssl_state: "Maharashtra"
+        nginx_ssl_locality: "Mumbai"
+        nginx_http_port: 8080
+        nginx_https_port: 8443
+
+verifier:
+  name: ansible 

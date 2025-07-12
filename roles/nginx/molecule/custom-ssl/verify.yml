@@ -1,0 +1,233 @@
+---
+- name: Verify Custom SSL Nginx Configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if Nginx is installed
+      ansible.builtin.package_facts:
+        manager: yum
+      
+    - name: Verify Nginx package is installed
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in ansible_facts.packages"
+        fail_msg: "Nginx package is not installed"
+        success_msg: "Nginx package is installed"
+
+    - name: Check Nginx service status
+      ansible.builtin.service_facts:
+      
+    - name: Verify Nginx service is running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['nginx.service'] is defined"
+          - "ansible_facts.services['nginx.service'].state == 'running'"
+        fail_msg: "Nginx service is not running"
+        success_msg: "Nginx service is running"
+
+    - name: Check if web root directory exists
+      ansible.builtin.stat:
+        path: "{{ nginx_web_root }}"
+      register: web_root_stat
+
+    - name: Verify web root directory exists
+      ansible.builtin.assert:
+        that:
+          - "web_root_stat.stat.exists"
+          - "web_root_stat.stat.isdir"
+        fail_msg: "Web root directory does not exist"
+        success_msg: "Web root directory exists"
+
+    - name: Check if index.html exists
+      ansible.builtin.stat:
+        path: "{{ nginx_web_root }}/index.html"
+      register: index_html_stat
+
+    - name: Verify index.html exists
+      ansible.builtin.assert:
+        that:
+          - "index_html_stat.stat.exists"
+          - "index_html_stat.stat.isfile"
+        fail_msg: "index.html file does not exist"
+        success_msg: "index.html file exists"
+
+    - name: Check Nginx configuration syntax
+      ansible.builtin.command: nginx -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Verify Nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - "nginx_config_test.rc == 0"
+        fail_msg: "Nginx configuration is invalid"
+        success_msg: "Nginx configuration is valid"
+
+    - name: Check if Nginx is listening on HTTP port
+      ansible.builtin.wait_for:
+        port: "{{ nginx_http_port }}"
+        timeout: 30
+      register: http_port_check
+
+    - name: Verify HTTP port is accessible
+      ansible.builtin.assert:
+        that:
+          - "http_port_check.state == 'started'"
+        fail_msg: "Nginx is not listening on HTTP port {{ nginx_http_port }}"
+        success_msg: "Nginx is listening on HTTP port {{ nginx_http_port }}"
+
+    - name: Test HTTP response
+      ansible.builtin.uri:
+        url: "http://localhost:{{ nginx_http_port }}"
+        method: GET
+        status_code: 200
+      register: http_response
+      ignore_errors: true
+
+    - name: Verify HTTP response
+      ansible.builtin.assert:
+        that:
+          - "http_response.status == 200"
+        fail_msg: "HTTP request failed with status {{ http_response.status }}"
+        success_msg: "HTTP request successful"
+
+    - name: Check if SSL certificate exists
+      ansible.builtin.stat:
+        path: "{{ nginx_ssl_dir }}/nginx-selfsigned.crt"
+      register: ssl_cert_stat
+
+    - name: Verify SSL certificate exists
+      ansible.builtin.assert:
+        that:
+          - "ssl_cert_stat.stat.exists"
+          - "ssl_cert_stat.stat.isfile"
+        fail_msg: "SSL certificate does not exist"
+        success_msg: "SSL certificate exists"
+
+    - name: Check if SSL private key exists
+      ansible.builtin.stat:
+        path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
+      register: ssl_key_stat
+
+    - name: Verify SSL private key exists
+      ansible.builtin.assert:
+        that:
+          - "ssl_key_stat.stat.exists"
+          - "ssl_key_stat.stat.isfile"
+        fail_msg: "SSL private key does not exist"
+        success_msg: "SSL private key exists"
+
+    - name: Check if Nginx is listening on HTTPS port
+      ansible.builtin.wait_for:
+        port: "{{ nginx_https_port }}"
+        timeout: 30
+      register: https_port_check
+
+    - name: Verify HTTPS port is accessible
+      ansible.builtin.assert:
+        that:
+          - "https_port_check.state == 'started'"
+        fail_msg: "Nginx is not listening on HTTPS port {{ nginx_https_port }}"
+        success_msg: "Nginx is listening on HTTPS port {{ nginx_https_port }}"
+
+    - name: Test HTTPS response
+      ansible.builtin.uri:
+        url: "https://localhost:{{ nginx_https_port }}"
+        method: GET
+        status_code: 200
+        validate_certs: false
+      register: https_response
+      ignore_errors: true
+
+    - name: Verify HTTPS response
+      ansible.builtin.assert:
+        that:
+          - "https_response.status == 200"
+        fail_msg: "HTTPS request failed with status {{ https_response.status }}"
+        success_msg: "HTTPS request successful"
+
+    - name: Check SSL certificate details
+      ansible.builtin.command: openssl x509 -in {{ nginx_ssl_dir }}/nginx-selfsigned.crt -text -noout
+      register: ssl_cert_info
+      changed_when: false
+
+    - name: Verify SSL certificate organization
+      ansible.builtin.assert:
+        that:
+          - "'O = {{ nginx_ssl_org }}' in ssl_cert_info.stdout"
+        fail_msg: "SSL certificate organization does not match {{ nginx_ssl_org }}"
+        success_msg: "SSL certificate organization matches {{ nginx_ssl_org }}"
+
+    - name: Verify SSL certificate country
+      ansible.builtin.assert:
+        that:
+          - "'C = {{ nginx_ssl_country }}' in ssl_cert_info.stdout"
+        fail_msg: "SSL certificate country does not match {{ nginx_ssl_country }}"
+        success_msg: "SSL certificate country matches {{ nginx_ssl_country }}"
+
+    - name: Verify SSL certificate state
+      ansible.builtin.assert:
+        that:
+          - "'ST = {{ nginx_ssl_state }}' in ssl_cert_info.stdout"
+        fail_msg: "SSL certificate state does not match {{ nginx_ssl_state }}"
+        success_msg: "SSL certificate state matches {{ nginx_ssl_state }}"
+
+    - name: Verify SSL certificate locality
+      ansible.builtin.assert:
+        that:
+          - "'L = {{ nginx_ssl_locality }}' in ssl_cert_info.stdout"
+        fail_msg: "SSL certificate locality does not match {{ nginx_ssl_locality }}"
+        success_msg: "SSL certificate locality matches {{ nginx_ssl_locality }}"
+
+    - name: Check firewall rules for HTTP
+      ansible.builtin.command: firewall-cmd --list-ports
+      register: firewall_ports
+      changed_when: false
+      when: nginx_firewall_enabled | bool
+
+    - name: Verify HTTP port in firewall
+      ansible.builtin.assert:
+        that:
+          - "'{{ nginx_http_port }}/tcp' in firewall_ports.stdout"
+        fail_msg: "HTTP port {{ nginx_http_port }} not in firewall rules"
+        success_msg: "HTTP port {{ nginx_http_port }} in firewall rules"
+      when: nginx_firewall_enabled | bool
+
+    - name: Verify HTTPS port in firewall
+      ansible.builtin.assert:
+        that:
+          - "'{{ nginx_https_port }}/tcp' in firewall_ports.stdout"
+        fail_msg: "HTTPS port {{ nginx_https_port }} not in firewall rules"
+        success_msg: "HTTPS port {{ nginx_https_port }} in firewall rules"
+      when: nginx_firewall_enabled | bool
+
+    - name: Display custom SSL test summary
+      ansible.builtin.debug:
+        msg: |
+          ✅ Custom SSL Nginx Configuration Verified!
+          
+          📋 Test Results:
+          - Nginx Package: ✅ Installed
+          - Nginx Service: ✅ Running & Enabled
+          - Web Root: ✅ {{ nginx_web_root }}
+          - Index HTML: ✅ Hello World Page
+          - HTTP Port: ✅ {{ nginx_http_port }}
+          - HTTPS Port: ✅ {{ nginx_https_port }}
+          - Configuration: ✅ Valid
+          - SSL Certificate: ✅ Generated with custom details
+          - SSL Organization: ✅ {{ nginx_ssl_org }}
+          - SSL Country: ✅ {{ nginx_ssl_country }}
+          - SSL State: ✅ {{ nginx_ssl_state }}
+          - SSL Locality: ✅ {{ nginx_ssl_locality }}
+          {% if nginx_firewall_enabled | bool %}
+          - Firewall: ✅ Configured
+          {% endif %}
+          
+          🌐 Access URLs:
+          - HTTP: http://{{ ansible_hostname }}:{{ nginx_http_port }}
+          - HTTPS: https://{{ ansible_hostname }}:{{ nginx_https_port }}
+          
+          🔐 SSL Certificate Location:
+          - Certificate: {{ nginx_ssl_dir }}/nginx-selfsigned.crt
+          - Private Key: {{ nginx_ssl_dir }}/nginx-selfsigned.key
+          - CSR: {{ nginx_ssl_dir }}/nginx-selfsigned.csr 

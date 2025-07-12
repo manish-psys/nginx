@@ -1,0 +1,45 @@
+---
+driver:
+  name: podman
+platforms:
+  - name: centos8-http
+    image: quay.io/centos/centos:stream8
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    environment:
+      container: podman
+    systemd: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    capabilities:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    command: ${MOLECULE_DOCKER_COMMAND:-""}
+    stop_signal: SIGRTMIN+3
+    annotations:
+      io.github.containers.toolbox: "true"
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+  playbooks:
+    converge: converge.yml
+  inventory:
+    group_vars:
+      all:
+        ansible_python_interpreter: /usr/bin/python3
+        ansible_user: root
+        ansible_become: false
+        ansible_connection: docker
+        nginx_ssl_enabled: false
+        nginx_http_port: 80
+
+verifier:
+  name: ansible 

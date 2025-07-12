@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT-0
+server {
+    listen {{ nginx_https_port }} ssl http2;
+    server_name {{ ansible_hostname }};
+    
+    # SSL Configuration
+    ssl_certificate {{ nginx_ssl_dir }}/nginx-selfsigned.crt;
+    ssl_certificate_key {{ nginx_ssl_dir }}/nginx-selfsigned.key;
+    
+    # SSL Security Settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # Security headers
+    {% if nginx_security_headers %}
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    {% endif %}
+    
+    root {{ nginx_web_root }};
+    index index.html index.htm;
+    
+    location / {
+        try_files $uri $uri/ =404;
+    }
+    
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # Deny access to backup files
+    location ~ ~$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # Logging
+    access_log {{ nginx_access_log }} main;
+    error_log {{ nginx_error_log }};
+} 

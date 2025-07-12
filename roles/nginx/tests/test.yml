@@ -1,6 +1,40 @@
-#SPDX-License-Identifier: MIT-0
+# SPDX-License-Identifier: MIT-0
 ---
-- hosts: localhost
+- name: Test Nginx Role - Default Configuration
+  hosts: localhost
   remote_user: root
+  gather_facts: true
+  vars:
+    nginx_ssl_enabled: true
+    nginx_http_port: 8080
+    nginx_https_port: 8443
   roles:
-    - roles/nginx
+    - nginx
+
+- name: Test Nginx Role - HTTP Only
+  hosts: localhost
+  remote_user: root
+  gather_facts: true
+  vars:
+    nginx_ssl_enabled: false
+    nginx_http_port: 80
+    nginx_firewall_enabled: true
+  roles:
+    - nginx
+
+- name: Test Nginx Role - Custom SSL Configuration
+  hosts: localhost
+  remote_user: root
+  gather_facts: true
+  vars:
+    nginx_ssl_enabled: true
+    nginx_ssl_org: "Custom Test Organization"
+    nginx_ssl_ou: "Custom Test Department"
+    nginx_ssl_country: "IN"
+    nginx_ssl_state: "Maharashtra"
+    nginx_ssl_locality: "Mumbai"
+    nginx_http_port: 8080
+    nginx_https_port: 8443
+    nginx_firewall_enabled: true
+  roles:
+    - nginx

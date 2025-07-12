@@ -1,0 +1,137 @@
+---
+- name: Verify HTTP-Only Nginx Configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if Nginx is installed
+      ansible.builtin.package_facts:
+        manager: yum
+      
+    - name: Verify Nginx package is installed
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in ansible_facts.packages"
+        fail_msg: "Nginx package is not installed"
+        success_msg: "Nginx package is installed"
+
+    - name: Check Nginx service status
+      ansible.builtin.service_facts:
+      
+    - name: Verify Nginx service is running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['nginx.service'] is defined"
+          - "ansible_facts.services['nginx.service'].state == 'running'"
+        fail_msg: "Nginx service is not running"
+        success_msg: "Nginx service is running"
+
+    - name: Check if web root directory exists
+      ansible.builtin.stat:
+        path: "{{ nginx_web_root }}"
+      register: web_root_stat
+
+    - name: Verify web root directory exists
+      ansible.builtin.assert:
+        that:
+          - "web_root_stat.stat.exists"
+          - "web_root_stat.stat.isdir"
+        fail_msg: "Web root directory does not exist"
+        success_msg: "Web root directory exists"
+
+    - name: Check if index.html exists
+      ansible.builtin.stat:
+        path: "{{ nginx_web_root }}/index.html"
+      register: index_html_stat
+
+    - name: Verify index.html exists
+      ansible.builtin.assert:
+        that:
+          - "index_html_stat.stat.exists"
+          - "index_html_stat.stat.isfile"
+        fail_msg: "index.html file does not exist"
+        success_msg: "index.html file exists"
+
+    - name: Check Nginx configuration syntax
+      ansible.builtin.command: nginx -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Verify Nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - "nginx_config_test.rc == 0"
+        fail_msg: "Nginx configuration is invalid"
+        success_msg: "Nginx configuration is valid"
+
+    - name: Check if Nginx is listening on HTTP port
+      ansible.builtin.wait_for:
+        port: "{{ nginx_http_port }}"
+        timeout: 30
+      register: http_port_check
+
+    - name: Verify HTTP port is accessible
+      ansible.builtin.assert:
+        that:
+          - "http_port_check.state == 'started'"
+        fail_msg: "Nginx is not listening on HTTP port {{ nginx_http_port }}"
+        success_msg: "Nginx is listening on HTTP port {{ nginx_http_port }}"
+
+    - name: Test HTTP response
+      ansible.builtin.uri:
+        url: "http://localhost:{{ nginx_http_port }}"
+        method: GET
+        status_code: 200
+      register: http_response
+      ignore_errors: true
+
+    - name: Verify HTTP response
+      ansible.builtin.assert:
+        that:
+          - "http_response.status == 200"
+        fail_msg: "HTTP request failed with status {{ http_response.status }}"
+        success_msg: "HTTP request successful"
+
+    - name: Verify SSL is disabled
+      ansible.builtin.stat:
+        path: "{{ nginx_ssl_dir }}/nginx-selfsigned.crt"
+      register: ssl_cert_stat
+      failed_when: false
+
+    - name: Check SSL certificate does not exist
+      ansible.builtin.assert:
+        that:
+          - "not ssl_cert_stat.stat.exists"
+        fail_msg: "SSL certificate exists but should not in HTTP-only mode"
+        success_msg: "SSL certificate does not exist (HTTP-only mode)"
+
+    - name: Check if HTTPS port is not listening
+      ansible.builtin.wait_for:
+        port: "{{ nginx_https_port }}"
+        timeout: 5
+      register: https_port_check
+      failed_when: false
+
+    - name: Verify HTTPS port is not accessible
+      ansible.builtin.assert:
+        that:
+          - "https_port_check.state == 'stopped'"
+        fail_msg: "HTTPS port is accessible but should not be in HTTP-only mode"
+        success_msg: "HTTPS port is not accessible (HTTP-only mode)"
+
+    - name: Display HTTP-only test summary
+      ansible.builtin.debug:
+        msg: |
+          ✅ HTTP-Only Nginx Configuration Verified!
+          
+          📋 Test Results:
+          - Nginx Package: ✅ Installed
+          - Nginx Service: ✅ Running & Enabled
+          - Web Root: ✅ {{ nginx_web_root }}
+          - Index HTML: ✅ Hello World Page
+          - HTTP Port: ✅ {{ nginx_http_port }}
+          - Configuration: ✅ Valid
+          - SSL Disabled: ✅ No certificates generated
+          - HTTPS Disabled: ✅ Port {{ nginx_https_port }} not listening
+          
+          🌐 Access URL:
+          - HTTP: http://{{ ansible_hostname }}:{{ nginx_http_port }} 

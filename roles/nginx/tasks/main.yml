@@ -1,14 +1,167 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for roles/nginx
+
+- name: Install EPEL repository (for CentOS/RHEL)
+  ansible.builtin.yum:
+    name: epel-release
+    state: present
+  when: ansible_os_family == "RedHat"
+
 - name: Install Nginx
-  ansible.builtin.apt:
+  ansible.builtin.yum:
     name: nginx
     state: present
-    update_cache: yes
+  when: ansible_os_family == "RedHat"
+
+- name: Create web root directory
+  ansible.builtin.file:
+    path: "{{ nginx_web_root }}"
+    state: directory
+    mode: '0755'
+    owner: nginx
+    group: nginx
+
+- name: Create Hello World HTML page
+  ansible.builtin.copy:
+    content: |
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Hello World</title>
+          <style>
+              body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+              h1 { color: #333; }
+          </style>
+      </head>
+      <body>
+          <h1>Hello, World!</h1>
+          <p>Welcome to Nginx on {{ ansible_hostname }}</p>
+          <p>Server Time: <span id="time"></span></p>
+          <script>
+              document.getElementById('time').textContent = new Date().toLocaleString();
+          </script>
+      </body>
+      </html>
+    dest: "{{ nginx_web_root }}/index.html"
+    mode: '0644'
+    owner: nginx
+    group: nginx
+
+- name: Create SSL certificates directory
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Generate self-signed SSL certificate
+  ansible.builtin.openssl_privatekey:
+    path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
+    size: 2048
+    state: present
+  when: nginx_ssl_enabled | bool
+
+- name: Generate self-signed SSL certificate signing request
+  ansible.builtin.openssl_csr:
+    path: "{{ nginx_ssl_dir }}/nginx-selfsigned.csr"
+    privatekey_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
+    common_name: "{{ ansible_hostname }}"
+    organization: "{{ nginx_ssl_org }}"
+    organizational_unit_name: "{{ nginx_ssl_ou }}"
+    country_name: "{{ nginx_ssl_country }}"
+    state_or_province_name: "{{ nginx_ssl_state }}"
+    locality_name: "{{ nginx_ssl_locality }}"
+  when: nginx_ssl_enabled | bool
+
+- name: Generate self-signed SSL certificate
+  ansible.builtin.openssl_certificate:
+    path: "{{ nginx_ssl_dir }}/nginx-selfsigned.crt"
+    csr_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.csr"
+    privatekey_path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
+    provider: selfsigned
+    days: 365
+  when: nginx_ssl_enabled | bool
+
+- name: Set SSL certificate permissions
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_dir }}/nginx-selfsigned.crt"
+    mode: '0644'
+    owner: nginx
+    group: nginx
+  when: nginx_ssl_enabled | bool
+
+- name: Set SSL private key permissions
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_dir }}/nginx-selfsigned.key"
+    mode: '0600'
+    owner: nginx
+    group: nginx
+  when: nginx_ssl_enabled | bool
+
+- name: Configure Nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: '0644'
+    owner: root
+    group: root
+  notify: reload nginx
+
+- name: Configure Nginx HTTP site
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: /etc/nginx/conf.d/default.conf
+    mode: '0644'
+    owner: root
+    group: root
+  notify: reload nginx
+
+- name: Configure Nginx HTTPS site
+  ansible.builtin.template:
+    src: ssl.conf.j2
+    dest: /etc/nginx/conf.d/ssl.conf
+    mode: '0644'
+    owner: root
+    group: root
+  when: nginx_ssl_enabled | bool
+  notify: reload nginx
+
+- name: Configure firewall for HTTP
+  ansible.builtin.firewalld:
+    port: "{{ nginx_http_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  when: ansible_os_family == "RedHat" and nginx_firewall_enabled | bool
+
+- name: Configure firewall for HTTPS
+  ansible.builtin.firewalld:
+    port: "{{ nginx_https_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  when: ansible_os_family == "RedHat" and nginx_firewall_enabled | bool and nginx_ssl_enabled | bool
 
 - name: Ensure Nginx is running
   ansible.builtin.service:
     name: nginx
     state: started
     enabled: true
+
+- name: Display SSL certificate information
+  ansible.builtin.debug:
+    msg: |
+      SSL Certificate Information:
+      - Certificate: {{ nginx_ssl_dir }}/nginx-selfsigned.crt
+      - Private Key: {{ nginx_ssl_dir }}/nginx-selfsigned.key
+      - CSR: {{ nginx_ssl_dir }}/nginx-selfsigned.csr
+      - Valid for: 365 days
+      - Common Name: {{ ansible_hostname }}
+      - Organization: {{ nginx_ssl_org }}
+      
+      Access URLs:
+      - HTTP: http://{{ ansible_hostname }}:{{ nginx_http_port }}
+      - HTTPS: https://{{ ansible_hostname }}:{{ nginx_https_port }}
+  when: nginx_ssl_enabled | bool

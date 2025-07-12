@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT-0
+server {
+    listen {{ nginx_http_port }};
+    server_name {{ ansible_hostname }};
+    
+    root {{ nginx_web_root }};
+    index index.html index.htm;
+    
+    # Security headers
+    {% if nginx_security_headers %}
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    {% endif %}
+    
+    location / {
+        try_files $uri $uri/ =404;
+    }
+    
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # Deny access to backup files
+    location ~ ~$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # Logging
+    access_log {{ nginx_access_log }} main;
+    error_log {{ nginx_error_log }};
+} 
